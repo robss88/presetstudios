@@ -14,7 +14,7 @@ function Header({ onMenuClick }) {
           >
             <Menu size={24} className="text-text-primary" />
           </button>
-          <h1 className="text-xl font-bold text-text-primary">Your App Name</h1>
+          <h1 className="text-xl font-bold text-text-primary">Preset Studios</h1>
         </div>
 
         {/* Right side - responsive buttons */}
