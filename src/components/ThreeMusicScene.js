@@ -1,60 +1,54 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
-const ThreeMusicScene = () => {
+const AvatarCustomizer = () => {
   const containerRef = useRef(null);
-  const mixerRef = useRef(null);
   const modelRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+
+  // Customization states
+  const [skinColor, setSkinColor] = useState('#ffdbac');
+  const [hairColor, setHairColor] = useState('#4a2f24');
+  const [shirtColor, setShirtColor] = useState('#2196f3');
+  const [pantsColor, setPantsColor] = useState('#212121');
 
   useEffect(() => {
     if (!containerRef.current) return;
+
+    // Get initial container dimensions
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
 
     // Scene setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
 
-    // Camera setup
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Camera setup with correct initial aspect ratio
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
     camera.position.set(0, 1.5, 3);
     camera.lookAt(0, 1, 0);
 
-    // Renderer setup
+    // Renderer setup with initial size
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
     containerRef.current.appendChild(renderer.domElement);
 
-    // Lighting
+    // Rest of your existing code...
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 5, 5);
-    directionalLight.castShadow = true;
-    scene.add(directionalLight);
+    const frontLight = new THREE.DirectionalLight(0xffffff, 1);
+    frontLight.position.set(0, 2, 4);
+    scene.add(frontLight);
 
-    // Add some colored spotlights for dance floor effect
-    const createSpotlight = (color, position) => {
-      const light = new THREE.SpotLight(color, 2);
-      light.position.set(...position);
-      light.angle = Math.PI / 4;
-      light.penumbra = 0.1;
-      light.decay = 2;
-      light.distance = 200;
-      scene.add(light);
-      return light;
-    };
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    backLight.position.set(0, 2, -4);
+    scene.add(backLight);
 
-    const spotlights = [
-      createSpotlight(0xff0000, [-4, 4, 2]),
-      createSpotlight(0x00ff00, [4, 4, 2]),
-      createSpotlight(0x0000ff, [0, 4, -2])
-    ];
-
-    // Load character model
+    // Load and set up the avatar model
     const loader = new GLTFLoader();
-    
     loader.load(
       '/models/avatar.glb',
       (gltf) => {
@@ -63,69 +57,79 @@ const ThreeMusicScene = () => {
         model.position.set(0, 0, 0);
         scene.add(model);
         modelRef.current = model;
+        setLoading(false);
 
-        // Find important bones if they exist
-        const bones = {};
+        // Set up materials mapping
         model.traverse((object) => {
-          if (object.isBone) {
-            bones[object.name] = object;
+          if (object.isMesh) {
+            if (object.name.toLowerCase().includes('hair')) {
+              object.userData.type = 'hair';
+            } else if (object.name.toLowerCase().includes('skin') || 
+                      object.name.toLowerCase().includes('head') || 
+                      object.name.toLowerCase().includes('face')) {
+              object.userData.type = 'skin';
+            } else if (object.name.toLowerCase().includes('shirt') || 
+                      object.name.toLowerCase().includes('top')) {
+              object.userData.type = 'shirt';
+            } else if (object.name.toLowerCase().includes('pants') || 
+                      object.name.toLowerCase().includes('bottom')) {
+              object.userData.type = 'pants';
+            }
+            object.material = object.material.clone();
           }
         });
 
-        // Animation loop with dance moves
-        const clock = new THREE.Clock();
-        const animate = () => {
-          requestAnimationFrame(animate);
-          const time = clock.getElapsedTime();
-
-          // Basic dance movements for the whole model
-          if (modelRef.current) {
-            // Bouncing movement
-            modelRef.current.position.y = Math.sin(time * 4) * 0.1;
-            
-            // Swaying movement
-            modelRef.current.rotation.y = Math.sin(time * 2) * 0.3;
-            
-            // Slight tilting
-            modelRef.current.rotation.z = Math.sin(time * 4) * 0.05;
-
-            // Move arms if bones exist
-            if (bones['LeftArm']) {
-              bones['LeftArm'].rotation.z = Math.sin(time * 4) * 0.5;
-              bones['LeftArm'].rotation.x = Math.cos(time * 2) * 0.5;
-            }
-            if (bones['RightArm']) {
-              bones['RightArm'].rotation.z = -Math.sin(time * 4) * 0.5;
-              bones['RightArm'].rotation.x = Math.cos(time * 2 + Math.PI) * 0.5;
-            }
-
-            // Move legs if bones exist
-            if (bones['LeftLeg']) {
-              bones['LeftLeg'].rotation.x = Math.sin(time * 4) * 0.2;
-            }
-            if (bones['RightLeg']) {
-              bones['RightLeg'].rotation.x = -Math.sin(time * 4) * 0.2;
-            }
-          }
-
-          // Animate spotlights
-          spotlights.forEach((light, index) => {
-            light.position.x = Math.sin(time * 0.7 + index * Math.PI / 2) * 4;
-            light.position.z = Math.cos(time * 0.7 + index * Math.PI / 2) * 4;
-          });
-
-          renderer.render(scene, camera);
-        };
-
-        animate();
+        // Initial material update
+        updateMaterials();
       },
       (progress) => {
         console.log('Loading model...', (progress.loaded / progress.total * 100) + '%');
       },
       (error) => {
         console.error('Error loading model:', error);
+        setLoading(false);
       }
     );
+
+    const updateMaterials = () => {
+      if (!modelRef.current) return;
+
+      modelRef.current.traverse((object) => {
+        if (object.isMesh && object.userData.type) {
+          let color;
+          switch (object.userData.type) {
+            case 'hair':
+              color = new THREE.Color(hairColor);
+              break;
+            case 'skin':
+              color = new THREE.Color(skinColor);
+              break;
+            case 'shirt':
+              color = new THREE.Color(shirtColor);
+              break;
+            case 'pants':
+              color = new THREE.Color(pantsColor);
+              break;
+            default:
+              return;
+          }
+          object.material.color = color;
+        }
+      });
+    };
+
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      
+      if (modelRef.current) {
+        modelRef.current.rotation.y += 0.005;
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
 
     // Handle window resize
     const handleResize = () => {
@@ -141,6 +145,9 @@ const ThreeMusicScene = () => {
 
     window.addEventListener('resize', handleResize);
 
+    // Call handleResize once to ensure initial size is correct
+    handleResize();
+
     return () => {
       window.removeEventListener('resize', handleResize);
       if (containerRef.current) {
@@ -149,10 +156,87 @@ const ThreeMusicScene = () => {
     };
   }, []);
 
+  // Update materials when colors change
+  useEffect(() => {
+    if (modelRef.current) {
+      modelRef.current.traverse((object) => {
+        if (object.isMesh && object.userData.type) {
+          let color;
+          switch (object.userData.type) {
+            case 'hair':
+              color = new THREE.Color(hairColor);
+              break;
+            case 'skin':
+              color = new THREE.Color(skinColor);
+              break;
+            case 'shirt':
+              color = new THREE.Color(shirtColor);
+              break;
+            case 'pants':
+              color = new THREE.Color(pantsColor);
+              break;
+            default:
+              return;
+          }
+          object.material.color = color;
+        }
+      });
+    }
+  }, [skinColor, hairColor, shirtColor, pantsColor]);
+
   return (
-    <div ref={containerRef} className="w-full h-96 rounded-lg overflow-hidden">
+    <div className="relative w-full h-full">
+      <div ref={containerRef} className="w-full h-96 rounded-lg overflow-hidden">
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white">
+            Loading...
+          </div>
+        )}
+      </div>
+      
+      {/* Customization UI */}
+      <div className="absolute bottom-4 left-4 right-4 bg-white p-4 rounded-lg shadow-lg">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Skin Color</label>
+            <input
+              type="color"
+              value={skinColor}
+              onChange={(e) => setSkinColor(e.target.value)}
+              className="mt-1 block w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Hair Color</label>
+            <input
+              type="color"
+              value={hairColor}
+              onChange={(e) => setHairColor(e.target.value)}
+              className="mt-1 block w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Shirt Color</label>
+            <input
+              type="color"
+              value={shirtColor}
+              onChange={(e) => setShirtColor(e.target.value)}
+              className="mt-1 block w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Pants Color</label>
+            <input
+              type="color"
+              value={pantsColor}
+              onChange={(e) => setPantsColor(e.target.value)}
+              className="mt-1 block w-full"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
 
-export default ThreeMusicScene;
+export default AvatarCustomizer;
